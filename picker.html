@@ -1,0 +1,785 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta name="viewport" content="initial-scale=1.0">
+<title>Picker</title>
+<style>
+body {
+    background:#FFF;
+    color:#000;
+    font-family:verdana, sans-serif;
+    font-size:10pt;
+    margin:0;
+    padding:10px;
+}
+
+a:link, a:visited {
+    color:#008;
+    font-weight:bold;
+    text-decoration:none;
+}
+
+a:active, a:hover {
+    color:#ACF;
+}
+
+.info {
+    font-weight:bold;
+}
+
+button {
+    font-family:inherit;
+    cursor:pointer;
+    border:0;
+    border-radius:3px;
+    padding:0.3em 0.5em;
+    background:#CCC;
+    color:#000;
+}
+
+button:hover {
+    background:#DDD;
+}
+
+button.disabled {
+    background:#DDD;
+    color:#888;
+    cursor:not-allowed;
+}
+
+button.disabled:hover {
+    background:#DDD;
+}
+
+#container {
+    position:relative;
+    margin-left:-10px;
+    margin-right:-10px;
+    padding:10px;
+    overflow:hidden;
+}
+
+@media (min-width:1024px) {
+    /* Put the found favorites beside the picking div when the window is sufficiently large */
+    #picking {
+        float:left;
+        width:636px;
+    }
+
+    #secondary {
+        margin-left:646px;
+    }
+}
+
+@media (min-width:1300px) {
+    /* Once we get to the point where 636px is less than half of the width of the screen, make the picking div just take up half */
+    #picking {
+        width:50%;
+    }
+
+    #secondary {
+        margin-left:51%;
+    }
+}
+
+#pick {
+    background:#58F;
+    color:#FFF;
+    font-size:larger;
+    font-weight:bold;
+    width:6em;
+    border-radius:5px;
+    margin-right:10px;
+}
+
+#pick.disabled {
+    background:#ACF;
+}
+
+#pick:hover {
+    background:#ACF;
+}
+
+.item-list {
+    padding:0;
+    list-style-type:none;
+    line-height:100px;
+}
+
+.item-list li {
+    margin:0;
+    display:inline-block;
+    height:130px;
+    width:130px;
+    line-height:100px;
+    border:3px solid transparent;
+    text-align:center;
+    position:relative;
+    vertical-align:top;
+    overflow:hidden;
+    border-radius:100%;
+    background:#F7F7F7;
+    color:#000;
+}
+
+.item-list li img {
+    vertical-align:middle;
+    max-height:100%;
+    max-width:100%;
+}
+
+.item-list li span {
+    display:inline-block;
+    vertical-align:middle;
+    line-height:1.2;
+}
+
+@media (max-width:636px) {
+    .item-list {
+        line-height:75px;
+    }
+
+    .item-list li {
+        line-height:75px;
+        height:75px;
+        width:75px;
+    }
+}
+
+@media (max-width:423px) {
+    .item-list {
+        line-height:50px;
+    }
+
+    .item-list li {
+        line-height:50px;
+        height:50px;
+        width:50px;
+    }
+}
+
+#evaluating li {
+    cursor:pointer;
+}
+
+#favorites li {
+    cursor:move;
+}
+
+.item-list li:hover {
+    background:#CDF;
+}
+
+.item-list.sorting li:hover {
+    background:#F7F7F7;
+}
+
+#evaluating li.selected {
+    border:3px solid #7AC;
+}
+
+#evaluating, #buttons {
+    text-align:center;
+    margin:auto;
+}
+
+#evaluating li.notice {
+    width:auto;
+    height:auto;
+    max-width:260px;
+    margin:auto;
+    background:#F7F7F7;
+    border-radius:10px;
+    padding:30px 30px;
+    color:#000;
+    text-align:center;
+    line-height:1.4;
+    cursor:auto;
+    font-size:10pt;
+}
+
+#buttons {
+    margin-top:30px;
+    position:relative;
+    z-index:3;
+}
+
+#progress-bar {
+    display:block;
+    margin:auto;
+    height:15px;
+    width:150px;
+    margin-top:5px;
+    background:#CDF;
+    vertical-align:middle;
+    transition: transform .2s ease-out;
+}
+
+#progress-bar span {
+    display:block;
+    height:100%;
+    width:0;
+    background:#58F;
+}
+</style>
+</head>
+<body>
+<h1>Picker</h1>
+
+<p>You can include any content you want here.</p>
+
+<div id="container">
+
+<div id="picking">
+<ul id="evaluating" class="item-list">
+</ul>
+
+<p id="buttons"><button id="pick">Pick</button> <button id="pass">Pass</button> <button id="undo">Undo</button> <button id="redo">Redo</button></p>
+</div>
+
+<div class="picker-info">
+<p>Remaining to be eliminated before next favorite is found: <span id="remaining"></span></p>
+</div>
+
+<div id="secondary">
+<h2>Found favorites</h2>
+
+<ol id="favorites" class="item-list">
+</ol>
+</div>
+</div>
+<script src="https://code.jquery.com/jquery-1.12.4.min.js"></script>
+<script src="picker.js"></script>
+<script src="picker-ui.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.7.0/Sortable.min.js"></script>
+<script>
+'use strict';
+
+var items = [
+    {id: 'pixie', image: 'smt/pixie.jpg'},
+	{id: 'highpixie', image: 'smt/highpixie.jpg'},
+	{id: 'jackfrost', image: 'smt/jackfrost.jpg'},
+	{id: 'pyrojack', image: 'smt/pyrojack.jpg'},
+	{id: 'kelpie', image: 'smt/kelpie.jpg'},
+	{id: 'abaddon', image: 'smt/abaddon.jpg'},
+	{id: 'aeros', image: 'smt/aeros.jpg'},
+	{id: 'agathion', image: 'smt/agathion.jpg'},
+	{id: 'aitvaras', image: 'smt/aitvaras.jpg'},
+	{id: 'alciel', image: 'smt/alciel.jpg'},
+	{id: 'alice', image: 'smt/alice.jpg'},
+	{id: 'alitat', image: 'smt/alitat.jpg'},
+	{id: 'amanozako', image: 'smt/amanozako.jpg'},
+	{id: 'amaterasu', image: 'smt/amaterasu.jpg'},
+	{id: 'amenouzume', image: 'smt/amenouzume.jpg'},
+	{id: 'amon', image: 'smt/amon.jpg'},
+	{id: 'anahita', image: 'smt/anahita.jpg'},
+	{id: 'ananta', image: 'smt/ananta.jpg'},
+	{id: 'anat', image: 'smt/anat.jpg'},
+	{id: 'andramelech', image: 'smt/andramelech.jpg'},
+	{id: 'andras', image: 'smt/andras.jpg'},
+	{id: 'angel01', image: 'smt/angel01.jpg'},
+	{id: 'angel02', image: 'smt/angel02.jpg'},
+	{id: 'aniel', image: 'smt/aniel.jpg'},
+	{id: 'anubis', image: 'smt/anubis.jpg'},
+	{id: 'anzu01', image: 'smt/anzu01.jpg'},
+	{id: 'anzu02', image: 'smt/anzu02.jpg'},
+	{id: 'apis', image: 'smt/apis.jpg'},
+	{id: 'apsaras', image: 'smt/apsaras.jpg'},
+	{id: 'apsu', image: 'smt/apsu.jpg'},
+	{id: 'aquans', image: 'smt/aquans.jpg'},
+	{id: 'arachne', image: 'smt/arachne.jpg'},
+	{id: 'arahabaki', image: 'smt/arahabaki.jpg'},
+	{id: 'aramisaki', image: 'smt/aramisaki.jpg'},
+	{id: 'archangel', image: 'smt/archangel.jpg'},
+	{id: 'ares', image: 'smt/ares.jpg'},
+	{id: 'arioch', image: 'smt/arioch.jpg'},
+	{id: 'artemis', image: 'smt/artemis.jpg'},
+	{id: 'asherah', image: 'smt/asherah.jpg'},
+	{id: 'astaroth', image: 'smt/astaroth.jpg'},
+	{id: 'asura', image: 'smt/asura.jpg'},
+	{id: 'atavaka', image: 'smt/atavaka.jpg'},
+	{id: 'athena', image: 'smt/athena.jpg'},
+	{id: 'atropos', image: 'smt/atropos.jpg'},
+	{id: 'attis', image: 'smt/attis.jpg'},
+	{id: 'azazel', image: 'smt/azazel.jpg'},
+	{id: 'azumi', image: 'smt/azumi.jpg'},
+	{id: 'baal', image: 'smt/baal.jpg'},
+	{id: 'baisuzhen', image: 'smt/baisuzhen.jpg'},
+	{id: 'baldur', image: 'smt/baldur.jpg'},
+	{id: 'baphomet', image: 'smt/baphomet.jpg'},
+	{id: 'barbatos', image: 'smt/barbatos.jpg'},
+	{id: 'barong', image: 'smt/barong.jpg'},
+	{id: 'basilisk01', image: 'smt/basilisk01.jpg'},
+	{id: 'basilisk02', image: 'smt/basilisk02.jpg'},
+	{id: 'byakko', image: 'smt/baykko.jpg'},
+	{id: 'beelzebub', image: 'smt/beelzebub.jpg'},
+	{id: 'beelzebub01', image: 'smt/beelzebub01.jpg'},
+	{id: 'belial', image: 'smt/belial.jpg'},
+	{id: 'belphegor', image: 'smt/belphegor.jpg'},
+	{id: 'berith', image: 'smt/berith.jpg'},
+	{id: 'berserker', image: 'smt/berserker.jpg'},
+	{id: 'bicorn', image: 'smt/bicorn.jpg'},
+	{id: 'bifrons', image: 'smt/bifrons.jpg'},
+	{id: 'bilwis', image: 'smt/bilwis.jpg'},
+	{id: 'bishamonten', image: 'smt/bishamonten.jpg'},
+	{id: 'blackfrost', image: 'smt/blackfrost.jpg'},
+	{id: 'blackmaria', image: 'smt/blackmaria.jpg'},
+	{id: 'blackooze', image: 'smt/blackooze.jpg'},
+	{id: 'blackrider', image: 'smt/blackrider.jpg'},
+	{id: 'botis', image: 'smt/botis.jpg'},
+	{id: 'brigid', image: 'smt/brigid.jpg'},
+	{id: 'bugs', image: 'smt/bugs.jpg'},
+	{id: 'cabracan', image: 'smt/cabracan.jpg'},
+	{id: 'caitsith', image: 'smt/caitsith.jpg'},
+	{id: 'caladrius', image: 'smt/caladrius.jpg'},
+	{id: 'camael', image: 'smt/camael.jpg'},
+	{id: 'camatotz', image: 'smt/camatotz.jpg'},
+	{id: 'catoblepass', image: 'smt/catoblepass.jpg'},
+	{id: 'centaur', image: 'smt/centaur.jpg'},
+	{id: 'cerberus', image: 'smt/cerberus.jpg'},
+	{id: 'cernunnos', image: 'smt/cernunnos.jpg'},
+	{id: 'chagrin', image: 'smt/chagrin.jpg'},
+	{id: 'chemtrail', image: 'smt/chemtrail.jpg'},
+	{id: 'chernobog', image: 'smt/chernobog.jpg'},
+	{id: 'cherub', image: 'smt/cherub.jpg'},
+	{id: 'chimera', image: 'smt/chimera.jpg'},
+	{id: 'chironup', image: 'smt/chironup.jpg'},
+	{id: 'chiyou', image: 'smt/chiyou.jpg'},
+	{id: 'chupacabra', image: 'smt/chupacabra.jpg'},
+	{id: 'churel', image: 'smt/churel.jpg'},
+	{id: 'cleopatra', image: 'smt/cleopatra.jpg'},
+	{id: 'clotho', image: 'smt/clotho.jpg'},
+	{id: 'cuchulainn', image: 'smt/cuchulainn.jpg'},
+	{id: 'cybele', image: 'smt/cybele.jpg'},
+	{id: 'daemon', image: 'smt/daemon.jpg'},
+	{id: 'daisoujou', image: 'smt/daisoujou.jpg'},
+	{id: 'dakini', image: 'smt/dakini.jpg'},
+	{id: 'dantalion', image: 'smt/dantalion.jpg'},
+	{id: 'danu', image: 'smt/danu.jpg'},
+	{id: 'dapeng', image: 'smt/dapeng.jpg'},
+	{id: 'daphne', image: 'smt/daphne.jpg'},
+	{id: 'david', image: 'smt/david.jpg'},
+	{id: 'decarabia', image: 'smt/decarabia.jpg'},
+	{id: 'demeter', image: 'smt/demeter.jpg'},
+	{id: 'demiurge', image: 'smt/demiurge.jpg'},
+	{id: 'demoneeho', image: 'smt/demoneeho.jpg'},
+	{id: 'diana', image: 'smt/diana.jpg'},
+	{id: 'dionysus', image: 'smt/dionysus.jpg'},
+	{id: 'dis', image: 'smt/dis.jpg'},
+	{id: 'dominion01', image: 'smt/dominion01.jpg'},
+	{id: 'dominion02', image: 'smt/dominion02.jpg'},
+	{id: 'dormarth', image: 'smt/dormarth.jpg'},
+	{id: 'dullahan', image: 'smt/dullahan.jpg'},
+	{id: 'dwarf', image: 'smt/dwarf.jpg'},
+	{id: 'dybbuk', image: 'smt/dybbuk.jpg'},
+	{id: 'dzelarhons', image: 'smt/dzelarhons.jpg'},
+	{id: 'eligor', image: 'smt/eligor.jpg'},
+	{id: 'enku', image: 'smt/enku.jpg'},
+	{id: 'erikonig', image: 'smt/erikonig.jpg'},
+	{id: 'erthys', image: 'smt/erthys.jpg'},
+	{id: 'fafnir01', image: 'smt/fafnir01.jpg'},
+	{id: 'fafnir02', image: 'smt/fafnir02.jpg'},
+	{id: 'fenghhuang', image: 'smt/fenghhuang.jpg'},
+	{id: 'fenrir', image: 'smt/fenrir.jpg'},
+	{id: 'fionn', image: 'smt/fionn.jpg'},
+	{id: 'flaemis', image: 'smt/flaemis.jpg'},
+	{id: 'flauros', image: 'smt/flauros.jpg'},
+	{id: 'fomorian', image: 'smt/fomorian.jpg'},
+	{id: 'forneus', image: 'smt/forneus.jpg'},
+	{id: 'fortuna', image: 'smt/fortuna.jpg'},
+	{id: 'frostace', image: 'smt/frostace.jpg'},
+	{id: 'futotama', image: 'smt/futotama.jpg'},
+	{id: 'futsunushi', image: 'smt/futsunushi.jpg'},
+	{id: 'fuuki', image: 'smt/fuuki.jpg'},
+	{id: 'fuxi', image: 'smt/fuxi.jpg'},
+	{id: 'gabriel', image: 'smt/gabriel.jpg'},
+	{id: 'gabriel01', image: 'smt/gabriel01.jpg'},
+	{id: 'ganesha', image: 'smt/ganesha.jpg'},
+	{id: 'garrote', image: 'smt/garrote.jpg'},
+	{id: 'garuda', image: 'smt/garuda.jpg'},
+	{id: 'gemori', image: 'smt/gemori.jpg'},
+	{id: 'genbu', image: 'smt/genbu.jpg'},
+	{id: 'ghoul', image: 'smt/ghoul.jpg'},
+	{id: 'girimekhala', image: 'smt/girimekhala.jpg'},
+	{id: 'gnome', image: 'smt/gnome.jpg'},
+	{id: 'goblin', image: 'smt/goblin.jpg'},
+	{id: 'gogmagog', image: 'smt/gogmagog.jpg'},
+	{id: 'gremlin', image: 'smt/gremlin.jpg'},
+	{id: 'grendel', image: 'smt/grendel.jpg'},
+	{id: 'gryphon', image: 'smt/gryphon.jpg'},
+	{id: 'gucumatz', image: 'smt/gucumatz.jpg'},
+	{id: 'guedhe', image: 'smt/guedhe.jpg'},
+	{id: 'guhuoniao', image: 'smt/guhuoniao.jpg'},
+	{id: 'gurr', image: 'smt/gurr.jpg'},
+	{id: 'hachiman', image: 'smt/hachiman.jpg'},
+	{id: 'hagen', image: 'smt/hagen.jpg'},
+	{id: 'hairyjack', image: 'smt/hairyjack.jpg'},
+	{id: 'halphas', image: 'smt/halphas.jpg'},
+	{id: 'hamsa', image: 'smt/hamsa.jpg'},
+	{id: 'hanuman', image: 'smt/hanuman.jpg'},
+	{id: 'haoma', image: 'smt/haoma.jpg'},
+	{id: 'hareofinaba', image: 'smt/hareofinaba.jpg'},
+	{id: 'hariti', image: 'smt/hariti.jpg'},
+	{id: 'harpy', image: 'smt/harpy.jpg'},
+	{id: 'hathor', image: 'smt/hathor.jpg'},
+	{id: 'haytaro', image: 'smt/haytaro.jpg'},
+	{id: 'hecatoncheires', image: 'smt/hecatoncheires.jpg'},
+	{id: 'heimdall', image: 'smt/heimdall.jpg'},
+	{id: 'hel', image: 'smt/hel.jpg'},
+	{id: 'hellbiker', image: 'smt/hellbiker.jpg'},
+	{id: 'heqet', image: 'smt/heqet.jpg'},
+	{id: 'hitokotonushi', image: 'smt/hitokotonushi.jpg'},
+	{id: 'hokutoseikun', image: 'smt/hokutoseikun.jpg'},
+	{id: 'hooligan', image: 'smt/hooligan.jpg'},
+	{id: 'horus', image: 'smt/horus.jpg'},
+	{id: 'hresvelgr', image: 'smt/hresvelgr.jpg'},
+	{id: 'hsing', image: 'smt/hsing.jpg'},
+	{id: 'huangdi', image: 'smt/huangdi.jpg'},
+	{id: 'huapo', image: 'smt/huapo.jpg'},
+	{id: 'huoniao', image: 'smt/huoniao.jpg'},
+	{id: 'hydra', image: 'smt/hydra.jpg'},
+	{id: 'ictinike', image: 'smt/ictinike.jpg'},
+	{id: 'idun', image: 'smt/idun.jpg'},
+	{id: 'illuyanka', image: 'smt/illuyanka.jpg'},
+	{id: 'inanna', image: 'smt/inanna.jpg'},
+	{id: 'incubus', image: 'smt/incubus.jpg'},
+	{id: 'inferno', image: 'smt/inferno.jpg'},
+	{id: 'inti', image: 'smt/inti.jpg'},
+	{id: 'inugami', image: 'smt/inugami.jpg'},
+	{id: 'ippondatara', image: 'smt/ippondatara.jpg'},
+	{id: 'ishtar', image: 'smt/ishtar.jpg'},
+	{id: 'isis', image: 'smt/isis.jpg'},
+	{id: 'israfel', image: 'smt/israfel.jpg'},
+	{id: 'itsumade', image: 'smt/itsumade.jpg'},
+	{id: 'ixtab', image: 'smt/ixtab.jpg'},
+	{id: 'izanami', image: 'smt/izanami.jpg'},
+	{id: 'jackripper', image: 'smt/jackripper.jpg'},
+	{id: 'jarilo', image: 'smt/jarilo.jpg'},
+	{id: 'jatayu', image: 'smt/jatayu.jpg'},
+	{id: 'jeannedarc', image: 'smt/jeannedarc.jpg'},
+	{id: 'jikokuten', image: 'smt/jikokuten.jpg'},
+	{id: 'kabuso', image: 'smt/kabuso.jpg'},
+	{id: 'kaimingshou', image: 'smt/kaimingshou.jpg'},
+	{id: 'kaiwan', image: 'smt/kaiwan.jpg'},
+	{id: 'kakuen', image: 'smt/kakuen.jpg'},
+	{id: 'kali', image: 'smt/kali.jpg'},
+	{id: 'kama', image: 'smt/kama.jpg'},
+	{id: 'kamapua', image: 'smt/kamapua.jpg'},
+	{id: 'kanbari', image: 'smt/kanbari.jpg'},
+	{id: 'kangiten', image: 'smt/kangiten.jpg'},
+	{id: 'karasutengu', image: 'smt/karasutengu.jpg'},
+	{id: 'kartikeya', image: 'smt/kartikeya.jpg'},
+	{id: 'katakirauwa', image: 'smt/katakirauwa.jpg'},
+	{id: 'kayanohime', image: 'smt/kayanohime.jpg'},
+	{id: 'kazfiel', image: 'smt/kazfiel.jpg'},
+	{id: 'khonsu', image: 'smt/khonsu.jpg'},
+	{id: 'khonsura', image: 'smt/khonsura.jpg'},
+	{id: 'kikimora', image: 'smt/kikimora.jpg'},
+	{id: 'kikurihime', image: 'smt/kikurihime.jpg'},
+	{id: 'kingfrost', image: 'smt/kingfrost.jpg'},
+	{id: 'kingu', image: 'smt/kingu.jpg'},
+	{id: 'kinki', image: 'smt/kinki.jpg'},
+	{id: 'kinmamon', image: 'smt/kinmamon.jpg'},
+	{id: 'knocker', image: 'smt/knocker.jpg'},
+	{id: 'kodama', image: 'smt/kodama.jpg'},
+	{id: 'kogasaburo', image: 'smt/kogasaburo.jpg'},
+	{id: 'kohryu', image: 'smt/kohryu.jpg'},
+	{id: 'koppatengu', image: 'smt/koppatengu.jpg'},
+	{id: 'koropokkuru', image: 'smt/koropokkuru.jpg'},
+	{id: 'koumokuten', image: 'smt/koumokuten.jpg'},
+	{id: 'kresnik', image: 'smt/kresnik.jpg'},
+	{id: 'kuda', image: 'smt/kuda.jpg'},
+	{id: 'kudlak', image: 'smt/kudlak.jpg'},
+	{id: 'kuebiko', image: 'smt/kuebiko.jpg'},
+	{id: 'kukunochi', image: 'smt/kukunochi.jpg'},
+	{id: 'kumbhanda', image: 'smt/kumbhanda.jpg'},
+	{id: 'kuramatengu', image: 'smt/kuramatengu.jpg'},
+	{id: 'kushinada', image: 'smt/kushinada.jpg'},
+	{id: 'kwancha', image: 'smt/kwancha.jpg'},
+	{id: 'lachesis', image: 'smt/lachesis.jpg'},
+	{id: 'lahmu', image: 'smt/lahmu.jpg'},
+	{id: 'lailah', image: 'smt/lailah.jpg'},
+	{id: 'lakshmi', image: 'smt/lakshmi.jpg'},
+	{id: 'lamia', image: 'smt/lamia.jpg'},
+	{id: 'lanling', image: 'smt/lanling.jpg'},
+	{id: 'leanansidhe', image: 'smt/leanansidhe.jpg'},
+	{id: 'legion', image: 'smt/legion.jpg'},
+	{id: 'lhamdearg', image: 'smt/lhamdearg.jpg'},
+	{id: 'lilim', image: 'smt/lilim.jpg'},
+	{id: 'lilith01', image: 'smt/lilith01.jpg'},
+	{id: 'lilith02', image: 'smt/lilith02.jpg'},
+	{id: 'loa', image: 'smt/loa.jpg'},
+	{id: 'loki', image: 'smt/loki.jpg'},
+	{id: 'lorelei', image: 'smt/lorelei.jpg'},
+	{id: 'loupgarou', image: 'smt/loupgarou.jpg'},
+	{id: 'lucifuge', image: 'smt/lucifuge.jpg'},
+	{id: 'macabre', image: 'smt/macabre.jpg'},
+	{id: 'mada', image: 'smt/mada.jpg'},
+	{id: 'madgasser', image: 'smt/madgasser.jpg'},
+	{id: 'magatsuhi', image: 'smt/magatsuhi.jpg'},
+	{id: 'mahamayuri', image: 'smt/mahamayuri.jpg'},
+	{id: 'makami', image: 'smt/makami.jpg'},
+	{id: 'makara', image: 'smt/makara.jpg'},
+	{id: 'mamedanuki', image: 'smt/mamedanuki.jpg'},
+	{id: 'manananggal', image: 'smt/manananggal.jpg'},
+	{id: 'mandrake', image: 'smt/mandrake.jpg'},
+	{id: 'manticore', image: 'smt/manticore.jpg'},
+	{id: 'mara', image: 'smt/mara.jpg'},
+	{id: 'maria', image: 'smt/maria.jpg'},
+	{id: 'marici', image: 'smt/marici.jpg'},
+	{id: 'masakado01', image: 'smt/masakado01.jpg'},
+	{id: 'mastema', image: 'smt/mastema.jpg'},
+	{id: 'matador', image: 'smt/matador.jpg'},
+	{id: 'maya', image: 'smt/maya.jpg'},
+	{id: 'mayahuel', image: 'smt/mayahuel.jpg'},
+	{id: 'medusa', image: 'smt/medusi.jpg'},
+	{id: 'melchizedek', image: 'smt/melchizedek.jpg'},
+	{id: 'melchom', image: 'smt/melchom.jpg'},
+	{id: 'mephisto', image: 'smt/mephisto.jpg'},
+	{id: 'mermaid', image: 'smt/mermaid.jpg'},
+	{id: 'metatron', image: 'smt/metatron.jpg'},
+	{id: 'michael01', image: 'smt/michael01.jpg'},
+	{id: 'michael', image: 'smt/micharl.jpg'},
+	{id: 'michizane', image: 'smt/michizane.jpg'},
+	{id: 'minotaur', image: 'smt/minotaur.jpg'},
+	{id: 'mishaguji', image: 'smt/mishaguhi.jpg'},
+	{id: 'mithras', image: 'smt/mithras.jpg'},
+	{id: 'mitra', image: 'smt/mitra.jpg'},
+	{id: 'mohshuvuu', image: 'smt/mohshuvuu.jpg'},
+	{id: 'mokoi', image: 'smt/mokoi.jpg'},
+	{id: 'moloch', image: 'smt/moloch.jpg'},
+	{id: 'momunofu', image: 'smt/momunofu.jpg'},
+	{id: 'morax', image: 'smt/morax.jpg'},
+	{id: 'mot', image: 'smt/mot.jpg'},
+	{id: 'motherharlot', image: 'smt/motherharlot.jpg'},
+	{id: 'mothman', image: 'smt/mothman.jpg'},
+	{id: 'mouryo', image: 'smt/mouryo.jpg'},
+	{id: 'murmur', image: 'smt/murmur.jpg'},
+	{id: 'mushussu', image: 'smt/mushussu.jpg'},
+	{id: 'myrmecoleon', image: 'smt/myrmecoleon.jpg'},
+	{id: 'nadja', image: 'smt/nadja.jpg'},
+	{id: 'naga', image: 'smt/naga.jpg'},
+	{id: 'nagaraja', image: 'smt/nagaraja.jpg'},
+	{id: 'nandou', image: 'smt/nandou.jpg'},
+	{id: 'napaea', image: 'smt/napaea.jpg'},
+	{id: 'narcissus', image: 'smt/narcissus.jpg'},
+	{id: 'nebiros', image: 'smt/nebiros.jpg'},
+	{id: 'nekomata', image: 'smt/nekomata.jpg'},
+	{id: 'nekoshogun', image: 'smt/nekoshogun.jpg'},
+	{id: 'nergal', image: 'smt/nergal.jpg'},
+	{id: 'nidhoggr', image: 'smt/nidhoggr.jpg'},
+	{id: 'norn', image: 'smt/norn.jpg'},
+	{id: 'nozuchi', image: 'smt/nozuchi.jpg'},
+	{id: 'nue', image: 'smt/nue.jpg'},
+	{id: 'obariyon', image: 'smt/obariyon.jpg'},
+	{id: 'oberon01', image: 'smt/oberon01.jpg'},
+	{id: 'oberon02', image: 'smt/oberon02.jpg'},
+	{id: 'odin01', image: 'smt/odin01.jpg'},
+	{id: 'odin02', image: 'smt/odin02.jpg'},
+	{id: 'ogre', image: 'smt/ogre.jpg'},
+	{id: 'ogun', image: 'smt/ogun.jpg'},
+	{id: 'okikumushia', image: 'smt/okikumushia.jpg'},
+	{id: 'okuninushi', image: 'smt/okuninushi.jpg'},
+	{id: 'ometeotl', image: 'smt/ometeotl.jpg'},
+	{id: 'omoikane', image: 'smt/omoikane.jpg'},
+	{id: 'ongyoki', image: 'smt/ongyoki.jpg'},
+	{id: 'oni', image: 'smt/oni.jpg'},
+	{id: 'onmoraki', image: 'smt/onmoraki.jpg'},
+	{id: 'orcus', image: 'smt/orcus.jpg'},
+	{id: 'orias', image: 'smt/orias.jpg'},
+	{id: 'orobas', image: 'smt/orobas.jpg'},
+	{id: 'orthrus', image: 'smt/orthrus.jpg'},
+	{id: 'ose', image: 'smt/ose.jpg'},
+	{id: 'osiris', image: 'smt/osiris.jpg'},
+	{id: 'oumitsunu', image: 'smt/oumitsunu.jpg'},
+	{id: 'ouroboros', image: 'smt/ouroboros.jpg'},
+	{id: 'ouyamatsumi', image: 'smt/ouyamatsumi.jpg'},
+	{id: 'pabilsag', image: 'smt/pabilsag.jpg'},
+	{id: 'pachacamac', image: 'smt/pachacamac.jpg'},
+	{id: 'palerider', image: 'smt/palerider.jpg'},
+	{id: 'pales', image: 'smt/pales.jpg'},
+	{id: 'parvati', image: 'smt/parvati.jpg'},
+	{id: 'patrimpas', image: 'smt/patrimpas.jpg'},
+	{id: 'patriot', image: 'smt/patriot.jpg'},
+	{id: 'pazuzu', image: 'smt/pazuzu.jpg'},
+	{id: 'pele', image: 'smt/pele.jpg'},
+	{id: 'pellaidh', image: 'smt/pellaidh.jpg'},
+	{id: 'pendragon', image: 'smt/pendragon.jpg'},
+	{id: 'peri', image: 'smt/peri.jpg'},
+	{id: 'persephone', image: 'smt/persephone.jpg'},
+	{id: 'phoenix', image: 'smt/phoenix.jpg'},
+	{id: 'pisaca', image: 'smt/pisaca.jpg'},
+	{id: 'poltergeist', image: 'smt/poltergeist.jpg'},
+	{id: 'porevit', image: 'smt/porevit.jpg'},
+	{id: 'power', image: 'smt/power.jpg'},
+	{id: 'preta', image: 'smt/preta.jpg'},
+	{id: 'principality', image: 'smt/principality.jpg'},
+	{id: 'prometheus', image: 'smt/prometheus.jpg'},
+	{id: 'python', image: 'smt/python.jpg'},
+	{id: 'qingniuguai', image: 'smt/qingniuguai.jpg'},
+	{id: 'queenmab', image: 'smt/queenmab.jpg'},
+	{id: 'quetzalcoatl01', image: 'smt/quetzalcoatl01.jpg'},
+	{id: 'quetzalcoatl02', image: 'smt/quetzalcoatl02.jpg'},
+	{id: 'quicksilver', image: 'smt/quicksilver.jpg'},
+	{id: 'raiju', image: 'smt/raiju.jpg'},
+	{id: 'rakshasa', image: 'smt/rakshasa.jpg'},
+	{id: 'rama', image: 'smt/rama.jpg'},
+	{id: 'rangda', image: 'smt/rangda.jpg'},
+	{id: 'raphael', image: 'smt/raphael.jpg'},
+	{id: 'raphael01', image: 'smt/raphael01.jpg'},
+	{id: 'redrider', image: 'smt/redrider.jpg'},
+	{id: 'rukh', image: 'smt/rukh.jpg'},
+	{id: 'salamander', image: 'smt/salamander.jpg'},
+	{id: 'samael', image: 'smt/samael.jpg'},
+	{id: 'samyaza', image: 'smt/samyaza.jpg'},
+	{id: 'sandalphon', image: 'smt/sandalphon.jpg'},
+	{id: 'sandman', image: 'smt/sandman.jpg'},
+	{id: 'sansyo', image: 'smt/sansyo.jpg'},
+	{id: 'sarasvati', image: 'smt/sarasvati.jpg'},
+	{id: 'scathach', image: 'smt/scathach.jpg'},
+	{id: 'sedna', image: 'smt/sedna.jpg'},
+	{id: 'seiryu', image: 'smt/seiryu.jpg'},
+	{id: 'seitentaisei', image: 'smt/seitentaisei.jpg'},
+	{id: 'senri', image: 'smt/senri.jpg'},
+	{id: 'setanta', image: 'smt/setanta.jpg'},
+	{id: 'seth', image: 'smt/seth.jpg'},
+	{id: 'shax', image: 'smt/shax.jpg'},
+	{id: 'shiisaa', image: 'smt/shiisaa.jpg'},
+	{id: 'shikiouji', image: 'smt/shikiouji.jpg'},
+	{id: 'shikome', image: 'smt/shikome.jpg'},
+	{id: 'shiva', image: 'smt/shiva.jpg'},
+	{id: 'shiwanna', image: 'smt/shiwanna.jpg'},
+	{id: 'siegfried', image: 'smt/siegfried.jpg'},
+	{id: 'silky', image: 'smt/silky.jpg'},
+	{id: 'skadi', image: 'smt/skadi.jpg'},
+	{id: 'skogsra', image: 'smt/skogsra.jpg'},
+	{id: 'sleipnir', image: 'smt/sleipnir.jpg'},
+	{id: 'slime01', image: 'smt/slime01.jpg'},
+	{id: 'slime02', image: 'smt/slime02.jpg'},
+	{id: 'sphinx', image: 'smt/sphinx.jpg'},
+	{id: 'spriggan', image: 'smt/spriggan.jpg'},
+	{id: 'sraosha', image: 'smt/sraosha.jpg'},
+	{id: 'stonka', image: 'smt/stonka.jpg'},
+	{id: 'strigoll', image: 'smt/strigoll.jpg'},
+	{id: 'strix', image: 'smt/strix.jpg'},
+	{id: 'succubus', image: 'smt/succubus.jpg'},
+	{id: 'sudama', image: 'smt/sudama.jpg'},
+	{id: 'suiki', image: 'smt/suiki.jpg'},
+	{id: 'sukunahikona', image: 'smt/sukunahikona.jpg'},
+	{id: 'suparna', image: 'smt/suparna.jpg'},
+	{id: 'surt', image: 'smt/surt.jpg'},
+	{id: 'susano', image: 'smt/susano.jpg'},
+	{id: 'sylph', image: 'smt/sylph.jpg'},
+	{id: 'takeminakata', image: 'smt/takeminakata.jpg'},
+	{id: 'tangatamanu', image: 'smt/tangatamanu.jpg'},
+	{id: 'taotie', image: 'smt/taotie.jpg'},
+	{id: 'taowu', image: 'smt/taowu.jpg'},
+	{id: 'taraka', image: 'smt/taraka.jpg'},
+	{id: 'tenkai', image: 'smt/tenkai.jpg'},
+	{id: 'tezcatlipoca', image: 'smt/tezcatlipoca.jpg'},
+	{id: 'therion', image: 'smt/therion.jpg'},
+	{id: 'thor01', image: 'smt/thor01.jpg'},
+	{id: 'thor02', image: 'smt/thor02.jpg'},
+	{id: 'thoth', image: 'smt/thoth.jpg'},
+	{id: 'throne', image: 'smt/throne.jpg'},
+	{id: 'thunderbird', image: 'smt/thunderbird.jpg'},
+	{id: 'tiamat', image: 'smt/tiamat.jpg'},
+	{id: 'titan', image: 'smt/titan.jpg'},
+	{id: 'titania01', image: 'smt/titania01.jpg'},
+	{id: 'tlaloc', image: 'smt/tlaloc.jpg'},
+	{id: 'tlaltecuhtli', image: 'smt/tlaltecuhtli.jpg'},
+	{id: 'tlazolteotl', image: 'smt/tlazolteotl.jpg'},
+	{id: 'tokisada', image: 'smt/tokisada.jpg'},
+	{id: 'tonatiuh', image: 'smt/tonatiuh.jpg'},
+	{id: 'toubyou', image: 'smt/toubyou.jpg'},
+	{id: 'trumpeter', image: 'smt/trumpeter.jpg'},
+	{id: 'tsuchigumo', image: 'smt/tsuchigumo.jpg'},
+	{id: 'tuofei', image: 'smt/tuofei.jpg'},
+	{id: 'turdak', image: 'smt/turdak.jpg'},
+	{id: 'tzizimitl', image: 'smt/tzizimitl.jpg'},
+	{id: 'ubu', image: 'smt/ubu.jpg'},
+	{id: 'ukanomitama', image: 'smt/ukanomitama.jpg'},
+	{id: 'undine', image: 'smt/undine.jpg'},
+	{id: 'unicorn', image: 'smt/unicorn.jpg'},
+	{id: 'uriel', image: 'smt/uriel.jpg'},
+	{id: 'uriel01', image: 'smt/uriel01.jpg'},
+	{id: 'valkyrie', image: 'smt/valkyrie.jpg'},
+	{id: 'vasuki', image: 'smt/vasuki.jpg'},
+	{id: 'vetala', image: 'smt/vetala.jpg'},
+	{id: 'victor', image: 'smt/victor.jpg'},
+	{id: 'virtue', image: 'smt/virtue.jpg'},
+	{id: 'vishnu', image: 'smt/vishnu.jpg'},
+	{id: 'vivian', image: 'smt/vivian.jpg'},
+	{id: 'vldofnir', image: 'smt/vldofnir.jpg'},
+	{id: 'vodyanik', image: 'smt/vodyanik.jpg'},
+	{id: 'vouivre', image: 'smt/vouivre.jpg'},
+	{id: 'wendigo', image: 'smt/wendigo.jpg'},
+	{id: 'whiterider', image: 'smt/whiterider.jpg'},
+	{id: 'wickerman', image: 'smt/wickerman.jpg'},
+	{id: 'wildhunt', image: 'smt/wildhunt.jpg'},
+	{id: 'xiuhtecuhtli', image: 'smt/xiuhtecuhtli.jpg'},
+	{id: 'xiwangmu', image: 'smt/xiwangmu.jpg'},
+	{id: 'yaksa', image: 'smt/yaksa.jpg'},
+	{id: 'yaksini', image: 'smt/yaksini.jpg'},
+	{id: 'yamatanoorochi', image: 'smt/yamatanoorochi.jpg'},
+	{id: 'yamawaro', image: 'smt/yamawaro.jpg'},
+	{id: 'yatagarasu', image: 'smt/yatagarasu.jpg'},
+	{id: 'yggdrasil', image: 'smt/yggdrasil.jpg'},
+	{id: 'ym', image: 'smt/ym.jpg'},
+	{id: 'yomotsuikusa', image: 'smt/yomotsuikusa.jpg'},
+	{id: 'yoshitsune', image: 'smt/yoshitsune.jpg'},
+	{id: 'yukijorou', image: 'smt/yukijorou.jpg'},
+	{id: 'yurlungur', image: 'smt/yurlungur.jpg'},
+	{id: 'zakkum', image: 'smt/zakkum.jpg'},
+	{id: 'zeus', image: 'smt/zeus.jpg'},
+	{id: 'zhen', image: 'smt/zhen.jpg'},
+	{id: 'zhongkui', image: 'smt/zhongkui.jpg'},
+	{id: 'zhougongen', image: 'smt/zhougongen.jpg'},
+	{id: 'zhuque', image: 'smt/zhuque.jpg'},
+	{id: 'zhutunshe', image: 'smt/zhutunshe.jpg'},
+	{id: 'zhuyin', image: 'smt/zhuyin.jpg'},
+	{id: 'zouchouten', image: 'smt/zouchouten.jpg'},
+	{id: 'reikokashima', image: 'smt/reikokashima.jpg'}
+];
+
+
+
+var myPicker = new picker.Picker({
+    items: items,
+	localStorageKey: 'picker-state'
+});
+
+var pickerUI = new PickerUI(myPicker, {
+    elements: {
+        pick: "#pick",
+        pass: "#pass",
+        undo: "#undo",
+        redo: "#redo",
+        evaluating: "#evaluating",
+        favorites: "#favorites"
+    }
+});
+
+pickerUI.initialize();
+
+/* Sortable favorites - you can safely remove this, and the Sortable.min.js script, if you don't want to be able to sort your favorite list. */
+var sortable = new Sortable(pickerUI.elem.favorites.get(0), {
+    draggable: '.item',
+    animation: 100,
+    onStart: function() {
+        pickerUI.elem.favorites.addClass("sorting");
+    },
+    onEnd: function() {
+        pickerUI.elem.favorites.removeClass("sorting");
+    },
+    onUpdate: function() {
+        myPicker.setFavorites(pickerUI.elem.favorites.children().map(function() {
+            return pickerUI.getItem(this);
+        }).get());
+        pickerUI.update(true);
+    }
+});
+/* End sortable favorites */
+</script>
+</body>
+</html>
